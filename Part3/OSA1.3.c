@@ -2,6 +2,7 @@
  ============================================================================
  Name        : OSA1.c
  Author      : Robert Sheehan
+ Modifier	 : Michael Kemp - mkem114
  Version     : 1.0
  Description : Single thread implementation.
  ============================================================================
@@ -13,7 +14,7 @@
 #include <unistd.h>
 
 #include "littleThread.h"
-#include "threads0.c" // rename this for different threads
+#include "threads3.c" // rename this for different threads
 
 Thread newThread; // the thread currently being set up
 Thread mainThread; // the main thread

@@ -2,6 +2,7 @@
  ============================================================================
  Name        : OSA1.c
  Author      : Robert Sheehan
+ Modifier	 : Michael Kemp - mkem114
  Version     : 1.0
  Description : Single thread implementation.
  ============================================================================
@@ -12,12 +13,16 @@
 #include <signal.h>
 #include <unistd.h>
 
+
 #include "littleThread.h"
-#include "threads0.c" // rename this for different threads
+#include "threads1.c" // rename this for different threads
 
 Thread newThread; // the thread currently being set up
 Thread mainThread; // the main thread
 struct sigaction setUpAction;
+
+Thread initial;
+Thread current;
 
 /*
  * Switches execution from prevThread to nextThread.
@@ -26,11 +31,13 @@ void switcher(Thread prevThread, Thread nextThread) {
 	if (prevThread->state == FINISHED) { // it has finished
 		printf("\ndisposing %d\n", prevThread->tid);
 		free(prevThread->stackAddr); // Wow!
+		current = nextThread;
 		longjmp(nextThread->environment, 1);
 	} else if (setjmp(prevThread->environment) == 0) { // so we can come back here
 		prevThread->state = READY;
 		nextThread->state = RUNNING;
 		printf("scheduling %d\n", nextThread->tid);
+		current = nextThread;
 		longjmp(nextThread->environment, 1);
 	}
 }
@@ -95,18 +102,54 @@ Thread createThread(void (startFunc)()) {
 	return thread;
 }
 
+void printThreadStates() {
+	printf("Thread States\n");
+	printf("=============\n");
+    Thread temp = initial;
+    do {
+        char *state;
+        switch (temp->state)
+        {
+            case READY: state="ready";
+            case RUNNING: state="running";
+            case FINISHED: state="finished";
+            case SETUP: state="setup";
+        }
+        printf("threadID: %d state:%s\n", temp->tid, state);
+        temp = temp->next;
+    } while (temp != initial);
+}
+
+Thread scheduler() {
+    Thread temp = current->next;
+    while (temp != current) {
+        if (temp->state == READY) {
+            return temp;
+        }
+    }
+    return NULL;
+}
+
 int main(void) {
 	struct thread controller;
 	Thread threads[NUMTHREADS];
 	mainThread = &controller;
 	mainThread->state = RUNNING;
-	setUpStackTransfer();
-	// create the threads
-	for (int t = 0; t < NUMTHREADS; t++) {
-		threads[t] = createThread(threadFuncs[t]);
+	if (NUMTHREADS > 0) {
+		setUpStackTransfer();
+		// create the threads
+		initial = createThread(threadFuncs[0]);
+		threads[0] = initial;
+		for (int t = 1; t < NUMTHREADS; t++) {
+			threads[t] = createThread(threadFuncs[t]);
+		}
+		for (int t = 0; t < NUMTHREADS; t++) {
+			threads[t]->prev = threads[(t+NUMTHREADS-1)%NUMTHREADS];
+			threads[t]->next = threads[(t+1)%NUMTHREADS];
+		}
+		puts("switching to first thread");
+		switcher(mainThread, initial);
+		puts("back to the main thread");
 	}
-	puts("switching to first thread");
-	switcher(mainThread, threads[0]);
-	puts("back to the main thread");
 	return EXIT_SUCCESS;
 }
