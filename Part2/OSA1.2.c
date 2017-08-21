@@ -2,7 +2,7 @@
  ============================================================================
  Name        : OSA1.c
  Author      : Robert Sheehan
- Modifier	 : Michael Kemp - mkem114
+ Modifier	 : Michael Kemp - mkem114 - 6273632
  Version     : 1.0
  Description : Single thread implementation.
  ============================================================================

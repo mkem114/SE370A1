@@ -2,7 +2,7 @@
  ============================================================================
  Name        : OSA1.c
  Author      : Robert Sheehan
- Modifier	 : Michael Kemp - mkem114
+ Modifier	 : Michael Kemp - mkem114 - 6273632
  Version     : 1.0
  Description : Single thread implementation.
  ============================================================================
@@ -11,7 +11,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <signal.h>
-#include <unistd.h>
+#include <sys/time.h>
+#include <string.h>
 
 #include "littleThread.h"
 #include "threads3.c" // rename this for different threads
@@ -20,18 +21,46 @@ Thread newThread; // the thread currently being set up
 Thread mainThread; // the main thread
 struct sigaction setUpAction;
 
+Thread *thread3;
+
+void switcher(Thread prevThread, Thread nextThread);
+void scheduler(Thread old);
+void printThreadStates();
+
+//http://www.informit.com/articles/article.aspx?p=23618&seqNum=14
+void timesUp (int signum) {
+    threadYield();
+}
+
 /*
  * Switches execution from prevThread to nextThread.
  */
 void switcher(Thread prevThread, Thread nextThread) {
 	if (prevThread->state == FINISHED) { // it has finished
-		printf("\ndisposing %d\n", prevThread->tid);
-		free(prevThread->stackAddr); // Wow!
+		printf("\ndisposing %d\n\n", prevThread->tid);
+
+		if (prevThread->stackAddr != NULL) {
+			free(prevThread->stackAddr); // Wow!
+			prevThread->stackAddr = NULL;
+		}
+
+		Thread temp1 = prevThread->prev;
+		Thread temp2 = prevThread->next;
+		temp1->next = temp2;
+		temp2->prev = temp1;
+		nextThread->state = RUNNING;
+
+		if (nextThread != mainThread) {
+			printThreadStates();
+		}
+
 		longjmp(nextThread->environment, 1);
 	} else if (setjmp(prevThread->environment) == 0) { // so we can come back here
 		prevThread->state = READY;
 		nextThread->state = RUNNING;
-		printf("scheduling %d\n", nextThread->tid);
+
+		printThreadStates();
+		printf("scheduling %d\n\n", nextThread->tid);
 		longjmp(nextThread->environment, 1);
 	}
 }
@@ -47,7 +76,7 @@ void associateStack(int signum) {
 	if (setjmp(localThread->environment) != 0) { // will be zero if called directly
 		(localThread->start)();
 		localThread->state = FINISHED;
-		switcher(localThread, mainThread); // at the moment back to the main thread
+		scheduler(localThread); // at the moment back to the main thread
 	}
 }
 
@@ -96,18 +125,94 @@ Thread createThread(void (startFunc)()) {
 	return thread;
 }
 
+void printThreadStates() {
+	printf("Thread States\n");
+	printf("=============\n");
+	for (int i = 0; i < NUMTHREADS; i++) {
+		char *state;
+		switch (thread3[i]->state)
+		{
+			case READY:
+				state="ready";
+				break;
+			case RUNNING:
+				state="running";
+				break;
+			case FINISHED:
+				state="finished";
+				break;
+			case SETUP:
+				state="setup";
+				break;
+		}
+		printf("threadID: %d state:%s\n", thread3[i]->tid, state);
+	}
+	printf("\n");
+}
+
+void scheduler(Thread old){
+	static Thread marker = NULL;
+	Thread nxt;
+
+	if (marker == NULL) {
+		marker = nxt;
+	} else if (old == NULL) {
+		old = marker;
+	}
+	nxt = old->next;
+
+	while (nxt->state != READY && nxt != nxt->next) {
+		nxt = nxt->next;
+	}
+	marker = nxt;
+
+	if (nxt->next == nxt) {
+		nxt = mainThread;
+	}
+	switcher(old,nxt);
+}
+
+void threadYield() {
+	scheduler(NULL);
+}
+
 int main(void) {
 	struct thread controller;
-	Thread threads[NUMTHREADS];
 	mainThread = &controller;
 	mainThread->state = RUNNING;
-	setUpStackTransfer();
-	// create the threads
-	for (int t = 0; t < NUMTHREADS; t++) {
-		threads[t] = createThread(threadFuncs[t]);
+	thread3 = malloc(NUMTHREADS*sizeof(Thread));
+	if (NUMTHREADS > 0) {
+		setUpStackTransfer();
+		// create the threads
+		for (int t = 0; t < NUMTHREADS; t++) {
+			thread3[t] = createThread(threadFuncs[t]);
+		}
+		for (int t = 0; t < NUMTHREADS; t++) {
+			thread3[t]->prev = thread3[(t+NUMTHREADS-1)%NUMTHREADS];
+			thread3[t]->next = thread3[(t+1)%NUMTHREADS];
+		}
+
+        //The following resource taught me how to run a timer every 20ms (=20000ns)
+        //http://www.informit.com/articles/article.aspx?p=23618&seqNum=14
+        struct sigaction sa;
+        struct itimerval timer;
+        //http://www.informit.com/articles/article.aspx?p=23618&seqNum=14
+        memset (&sa, 0, sizeof (sa));
+        sa.sa_handler = &timesUp;
+        sigaction (SIGVTALRM, &sa, NULL);
+        //http://www.informit.com/articles/article.aspx?p=23618&seqNum=14
+        timer.it_value.tv_sec = 0;
+        timer.it_value.tv_usec = 20000;
+        timer.it_interval.tv_sec = 0;
+        timer.it_interval.tv_usec = 20000;
+        setitimer (ITIMER_VIRTUAL, &timer, NULL);
+
+		mainThread->next=thread3[0];
+		printThreadStates();
+		puts("switching to first thread\n");
+		scheduler(mainThread);
+		puts("back to the main thread\n");
+		printThreadStates();
 	}
-	puts("switching to first thread");
-	switcher(mainThread, threads[0]);
-	puts("back to the main thread");
 	return EXIT_SUCCESS;
 }
