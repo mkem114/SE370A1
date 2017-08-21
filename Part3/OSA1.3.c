@@ -13,6 +13,7 @@
 #include <signal.h>
 #include <sys/time.h>
 #include <string.h>
+#include <unistd.h>
 
 #include "littleThread.h"
 #include "threads3.c" // rename this for different threads
@@ -21,15 +22,21 @@ Thread newThread; // the thread currently being set up
 Thread mainThread; // the main thread
 struct sigaction setUpAction;
 
+//Global pointer to the initial array of Threads
 Thread *thread3;
 
+//Prototype statements
 void switcher(Thread prevThread, Thread nextThread);
+
 void scheduler(Thread old);
+
 void printThreadStates();
 
 //http://www.informit.com/articles/article.aspx?p=23618&seqNum=14
-void timesUp (int signum) {
-    threadYield();
+//Timer handler, forces current thread to yield
+void timesUp(int signum) {
+	//Yielding for the current thread
+	threadYield();
 }
 
 /*
@@ -39,28 +46,32 @@ void switcher(Thread prevThread, Thread nextThread) {
 	if (prevThread->state == FINISHED) { // it has finished
 		printf("\ndisposing %d\n\n", prevThread->tid);
 
+		//Only frees the thread's stack if it's not already
 		if (prevThread->stackAddr != NULL) {
 			free(prevThread->stackAddr); // Wow!
 			prevThread->stackAddr = NULL;
 		}
 
+		//Removes the finished thread from the linked list
 		Thread temp1 = prevThread->prev;
 		Thread temp2 = prevThread->next;
 		temp1->next = temp2;
 		temp2->prev = temp1;
 		nextThread->state = RUNNING;
 
+		//Print the switching if not going back to the main function
 		if (nextThread != mainThread) {
 			printThreadStates();
 		}
 
 		longjmp(nextThread->environment, 1);
 	} else if (setjmp(prevThread->environment) == 0) { // so we can come back here
+		//Updates states of old threads and new threads
 		prevThread->state = READY;
 		nextThread->state = RUNNING;
 
 		printThreadStates();
-		printf("scheduling %d\n\n", nextThread->tid);
+		//printf("scheduling %d\n\n", nextThread->tid);
 		longjmp(nextThread->environment, 1);
 	}
 }
@@ -125,53 +136,74 @@ Thread createThread(void (startFunc)()) {
 	return thread;
 }
 
+//Prints the state of all threads
 void printThreadStates() {
+	//Print header
 	printf("Thread States\n");
 	printf("=============\n");
+	//For every thread
 	for (int i = 0; i < NUMTHREADS; i++) {
+		//Represent the current state as a string
 		char *state;
-		switch (thread3[i]->state)
-		{
+		switch (thread3[i]->state) {
 			case READY:
-				state="ready";
+				state = "ready";
 				break;
 			case RUNNING:
-				state="running";
+				state = "running";
 				break;
 			case FINISHED:
-				state="finished";
+				state = "finished";
 				break;
 			case SETUP:
-				state="setup";
+				state = "setup";
 				break;
 		}
+		//Print to the screen
 		printf("threadID: %d state:%s\n", thread3[i]->tid, state);
 	}
 	printf("\n");
 }
 
-void scheduler(Thread old){
+//Determine the next thread to run
+void scheduler(Thread old) {
 	static Thread marker = NULL;
 	Thread nxt;
 
+	//A startup thang
 	if (marker == NULL) {
 		marker = nxt;
-	} else if (old == NULL) {
+	}
+	//If we don't know the currently executing thread then assume
+	if (old == NULL) {
 		old = marker;
 	}
 	nxt = old->next;
 
+	//Until we have a thread to run next that's in the ready state load the next one
 	while (nxt->state != READY && nxt != nxt->next) {
 		nxt = nxt->next;
 	}
 	marker = nxt;
 
+	//If there's only one thread left
 	if (nxt->next == nxt) {
+		//Go back to main
 		nxt = mainThread;
+		//Make sure there's no threads left that are ready
+		for (int i = 0; i < NUMTHREADS; i++) {
+			//If there is then run them
+			if (thread3[i]->state != FINISHED) {
+				nxt = thread3[i];
+			}
+		}
 	}
-	switcher(old,nxt);
+
+	//Switch to the next thread
+	switcher(old, nxt);
 }
 
+//Pause the current thread
 void threadYield() {
 	scheduler(NULL);
 }
@@ -180,36 +212,39 @@ int main(void) {
 	struct thread controller;
 	mainThread = &controller;
 	mainThread->state = RUNNING;
-	thread3 = malloc(NUMTHREADS*sizeof(Thread));
+	thread3 = malloc(NUMTHREADS * sizeof(Thread));
 	if (NUMTHREADS > 0) {
 		setUpStackTransfer();
 		// create the threads
 		for (int t = 0; t < NUMTHREADS; t++) {
 			thread3[t] = createThread(threadFuncs[t]);
 		}
+		// Link the list together
 		for (int t = 0; t < NUMTHREADS; t++) {
-			thread3[t]->prev = thread3[(t+NUMTHREADS-1)%NUMTHREADS];
-			thread3[t]->next = thread3[(t+1)%NUMTHREADS];
+			thread3[t]->prev = thread3[(t + NUMTHREADS - 1) % NUMTHREADS];
+			thread3[t]->next = thread3[(t + 1) % NUMTHREADS];
 		}
 
-        //The following resource taught me how to run a timer every 20ms (=20000ns)
-        //http://www.informit.com/articles/article.aspx?p=23618&seqNum=14
-        struct sigaction sa;
-        struct itimerval timer;
-        //http://www.informit.com/articles/article.aspx?p=23618&seqNum=14
-        memset (&sa, 0, sizeof (sa));
-        sa.sa_handler = &timesUp;
-        sigaction (SIGVTALRM, &sa, NULL);
-        //http://www.informit.com/articles/article.aspx?p=23618&seqNum=14
-        timer.it_value.tv_sec = 0;
-        timer.it_value.tv_usec = 20000;
-        timer.it_interval.tv_sec = 0;
-        timer.it_interval.tv_usec = 20000;
-        setitimer (ITIMER_VIRTUAL, &timer, NULL);
+		//The following resource taught me how to run a timer every 20ms (=20000ns)
+		//http://www.informit.com/articles/article.aspx?p=23618&seqNum=14
+		struct sigaction sa;
+		struct itimerval timer;
+		//http://www.informit.com/articles/article.aspx?p=23618&seqNum=14
+		memset(&sa, 0, sizeof(sa));
+		sa.sa_handler = &timesUp; //Put function name in handler
+		sigaction(SIGVTALRM, &sa, NULL); //Assign handler to signal
+		//http://www.informit.com/articles/article.aspx?p=23618&seqNum=14
+		timer.it_value.tv_sec = 0; //First 0
+		timer.it_value.tv_usec = 20000; //First 20
+		timer.it_interval.tv_sec = 0; //Every 0
+		timer.it_interval.tv_usec = 20000; //to 20ms after that
+		setitimer(ITIMER_VIRTUAL, &timer, NULL); // Start timer
 
-		mainThread->next=thread3[0];
+		//Set next of main thread to first created one
+		mainThread->next = thread3[0];
 		printThreadStates();
 		puts("switching to first thread\n");
+		//Bombs away!
 		scheduler(mainThread);
 		puts("back to the main thread\n");
 		printThreadStates();

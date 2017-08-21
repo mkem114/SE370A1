@@ -162,6 +162,11 @@ void scheduler(Thread old){
 
     if (nxt->next == nxt) {
         nxt = mainThread;
+		for (int i = 0; i < NUMTHREADS; i++) {
+			if (thread3[i]->state != FINISHED) {
+				nxt = thread3[i];
+			}
+		}
 	}
 	switcher(old,nxt);
 }
