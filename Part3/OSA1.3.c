@@ -13,6 +13,7 @@
 #include <signal.h>
 #include <sys/time.h>
 #include <string.h>
+#include <unistd.h>
 
 #include "littleThread.h"
 #include "threads3.c" // rename this for different threads
@@ -168,6 +169,11 @@ void scheduler(Thread old){
 
 	if (nxt->next == nxt) {
 		nxt = mainThread;
+        for (int i = 0; i < NUMTHREADS; i++) {
+            if (thread3[i]->state != FINISHED) {
+                nxt = thread3[i];
+            }
+        }
 	}
 	switcher(old,nxt);
 }
