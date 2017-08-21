@@ -1,20 +1,27 @@
-Michael Kemp - mkem114
-======================
+Michael Kemp - mkem114 - 627362
+===============================
 
 Question 1
 There is a comment saying " Wow! " in the switcher function in OSA1.c . This is to indicate something very
 bad is happening here. Explain what it is.
 
-
+The stack is freed but it can still be accessed which is a security concern, it should not be though in case it was used
+by the operating system. The rest of the thread information is still there so the meta information can be used like prev
+and next for the circular linked list.
 
 Question 2
 Why are the time consuming calculations in threads3.c required in order to demonstrate the effectiveness
 of the pre-emptive scheduler?
 
-virtual timer. only counts down when it uses time
+There needs to be more than 20ms of processing time in a thread so that it doesn't yield/finish before the pre-emption
+tries to switch threads. i.e it would be impossible to see the difference between the first task and the third because
+the thread would finish and thus printing the thread statuses would give a similar result. The timer is also only
+includes the time spent in this program because it's a virtual timer.
 
 Question 3
 In threads3.c there is some code around the call to rand() to block signals and then allow them again.
 Explain what can happen if this is not done. Also give an explanation as to why this can happen.
 
-because rand is not thread safe
+rand() is not thread safe so if a signal occurs (especially the timer one) it will interrupt whatever was going on in
+side of rand() and leave stuff in an inconsistent state which could lead to a program crash or data corruption. So we
+turn signals off before rand() is called and then back on so we can use them again.
