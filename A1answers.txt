@@ -1,2 +1,20 @@
- Michael Kemp - mkem114
- ======================
+Michael Kemp - mkem114
+======================
+
+Question 1
+There is a comment saying " Wow! " in the switcher function in OSA1.c . This is to indicate something very
+bad is happening here. Explain what it is.
+
+
+
+Question 2
+Why are the time consuming calculations in threads3.c required in order to demonstrate the effectiveness
+of the pre-emptive scheduler?
+
+virtual timer. only counts down when it uses time
+
+Question 3
+In threads3.c there is some code around the call to rand() to block signals and then allow them again.
+Explain what can happen if this is not done. Also give an explanation as to why this can happen.
+
+because rand is not thread safe
