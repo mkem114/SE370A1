@@ -3,6 +3,5 @@ project(SE370A1)
 
 set(CMAKE_C_STANDARD 99)
 
-
-set(SOURCE_FILES Part1/OSA1.1.c)
+set(SOURCE_FILES Part2/OSA1.2.c)
 add_executable(SE370A1 ${SOURCE_FILES})
