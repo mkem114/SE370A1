@@ -161,7 +161,7 @@ void scheduler(Thread old){
 
     marker = nxt;
     if (nxt->next == nxt) {
-        switcher(old,mainThread);
+        nxt = mainThread;
     }
     switcher(old,nxt);
 }

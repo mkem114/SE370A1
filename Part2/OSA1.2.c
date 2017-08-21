@@ -158,12 +158,16 @@ void scheduler(Thread old){
 	while (nxt->state != READY && nxt != nxt->next) {
 		nxt = nxt->next;
 	}
-
 	marker = nxt;
-	if (nxt->next == nxt) {
-		switcher(old,mainThread);
+
+    if (nxt->next == nxt) {
+        nxt = mainThread;
 	}
 	switcher(old,nxt);
+}
+
+void threadYield() {
+    scheduler(NULL);
 }
 
 int main(void) {
